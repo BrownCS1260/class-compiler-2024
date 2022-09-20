@@ -1,4 +1,4 @@
 (library
  (name csci1260)
- (modules compile interp test)
+ (modules compile interp test util)
  (libraries unix s_exp asm))
