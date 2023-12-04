@@ -1,7 +1,7 @@
 import ClassCompiler.Asm
 import ClassCompiler.SExp
 
-open Directive Operand Register S_exp
+open Directive Operand Register Ast
 
 inductive Value
 | Integer (i : Int)
@@ -16,22 +16,23 @@ instance : Repr Value where
 
 open Value
 
-def interpret_exp : S_exp → Option Value
-| (Num n) => Integer n
-| (Sym "true") => Boolean true
-| (Sym "false") => Boolean false
-| (Lst [Sym "add1", arg]) =>
+def interpret_exp : Ast → Option Value
+| Num n => Integer n
+| Ast.True => Boolean true
+| Ast.False => Boolean false
+| Add1 arg =>
   match interpret_exp arg with
   | some (Integer i) => Integer (i + 1)
   | _ => none
-| (Lst [Sym "sub1", arg]) =>
+| Sub1 arg =>
   match interpret_exp arg with
   | some (Integer i) => Integer (i - 1)
   | _ => none
-| _ => none
 
 unsafe def interpret_string (s : String) : Option Value :=
 let sexp := S_exp_of_String s;
-interpret_exp sexp
+match Ast_of_S_exp sexp with
+| some ast => interpret_exp ast
+| none => panic! "parser error"
 
 #eval interpret_string "(add1 4)"
