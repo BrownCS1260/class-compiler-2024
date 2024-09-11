@@ -1,2 +1,3 @@
 version=0.26.0
 profile=ocamlformat
+margin=70
