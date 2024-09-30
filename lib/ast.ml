@@ -36,9 +36,11 @@ let prim2_of_string = function
 type expr =
   | Bool of bool
   | Num of int
+  | Var of string
   | If of expr * expr * expr
   | Prim1 of prim1 * expr
   | Prim2 of prim2 * expr * expr
+  | Let of string * expr * expr
 
 let rec expr_of_s_exp (e : s_exp) : expr =
   match e with
@@ -48,6 +50,8 @@ let rec expr_of_s_exp (e : s_exp) : expr =
       Bool true
   | Sym "false" ->
       Bool false
+  | Sym s ->
+      Var s
   | Lst [Sym "if"; e1; e2; e3] ->
       If (expr_of_s_exp e1, expr_of_s_exp e2, expr_of_s_exp e3)
   | Lst [Sym op; e1] when Option.is_some (prim1_of_string op) ->
@@ -57,5 +61,7 @@ let rec expr_of_s_exp (e : s_exp) : expr =
         ( Option.get (prim2_of_string op)
         , expr_of_s_exp e1
         , expr_of_s_exp e2 )
+  | Lst [Sym "let"; Lst [Lst [Sym s; e]]; body] ->
+      Let (s, expr_of_s_exp e, expr_of_s_exp body)
   | _ ->
       raise (BadSExpression e)
