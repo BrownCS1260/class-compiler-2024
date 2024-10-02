@@ -4,14 +4,17 @@ open Util
 
 exception BadExpression of expr
 
-type value = Number of int | Boolean of bool
+type value = Number of int | Boolean of bool | Pair of value * value
 
-let string_of_value (v : value) : string =
+let rec string_of_value (v : value) : string =
   match v with
   | Number n ->
       string_of_int n
   | Boolean b ->
       string_of_bool b
+  | Pair (e1, e2) ->
+      Printf.sprintf "(pair %s %s)" (string_of_value e1)
+        (string_of_value e2)
 
 let rec interp_exp (env : value symtab) (exp : expr) : value =
   match exp with
@@ -50,6 +53,20 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
         Number (n - 1)
     | _ ->
         raise (BadExpression exp) )
+  | Prim1 (Left, e) -> (
+    match interp_exp env e with
+    | Pair (e1, _) ->
+        e1
+    | _ ->
+        raise (BadExpression exp) )
+  | Prim1 (Right, e) -> (
+    match interp_exp env e with
+    | Pair (_, e2) ->
+        e2
+    | _ ->
+        raise (BadExpression exp) )
+  | Prim2 (Pair, e1, e2) ->
+      Pair (interp_exp env e1, interp_exp env e2)
   | Prim2 (Plus, e1, e2) -> (
     match (interp_exp env e1, interp_exp env e2) with
     | Number n1, Number n2 ->
