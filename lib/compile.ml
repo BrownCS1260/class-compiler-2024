@@ -51,12 +51,6 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
       [Mov (Reg Rax, stack_address (Symtab.find s tab))]
   | Var _ ->
       raise (BadExpression program)
-  | Let (s, e, body) ->
-      compile_exp tab stack_index e
-      @ [Mov (stack_address stack_index, Reg Rax)]
-      @ compile_exp
-          (Symtab.add s stack_index tab)
-          (stack_index - 8) body
   | Prim1 (Add1, arg) ->
       compile_exp tab stack_index arg
       @ [Add (Reg Rax, Imm (1 lsl num_shift))]
@@ -110,6 +104,12 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
       @ [Jmp continue_label] @ [Label else_label]
       @ compile_exp tab stack_index else_exp
       @ [Label continue_label]
+  | Let (s, e, body) ->
+      compile_exp tab stack_index e
+      @ [Mov (stack_address stack_index, Reg Rax)]
+      @ compile_exp
+          (Symtab.add s stack_index tab)
+          (stack_index - 8) body
 
 let compile (program : expr) : string =
   [Global "entry"; Label "entry"]

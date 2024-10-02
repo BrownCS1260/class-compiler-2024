@@ -23,9 +23,6 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
       Symtab.find s env
   | Var _ ->
       raise (BadExpression exp)
-  | Let (s, e, body) ->
-      let e_val = interp_exp env e in
-      interp_exp (Symtab.add s e_val env) body
   | Prim1 (Not, arg) ->
       if interp_exp env arg = Boolean false then Boolean true
       else Boolean false
@@ -77,6 +74,9 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
       if interp_exp env test_exp = Boolean false then
         interp_exp env else_exp
       else interp_exp env then_exp
+  | Let (s, e, body) ->
+      let e_val = interp_exp env e in
+      interp_exp (Symtab.add s e_val env) body
 
 let interp (program : string) : string =
   parse program |> expr_of_s_exp |> interp_exp Symtab.empty
