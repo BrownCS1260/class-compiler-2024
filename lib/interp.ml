@@ -79,8 +79,14 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
         Number (n1 - n2)
     | _ ->
         raise (BadExpression exp) )
-  | Prim2 (Eq, e1, e2) ->
-      Boolean (interp_exp env e1 = interp_exp env e2)
+  | Prim2 (Eq, e1, e2) -> (
+    match (interp_exp env e1, interp_exp env e2) with
+    | Number n1, Number n2 ->
+        Boolean (n1 = n2)
+    | Boolean b1, Boolean b2 ->
+        Boolean (b1 = b2)
+    | _ ->
+        raise (BadExpression exp) )
   | Prim2 (Lt, e1, e2) -> (
     match (interp_exp env e1, interp_exp env e2) with
     | Number n1, Number n2 ->
@@ -98,3 +104,6 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
 let interp (program : string) : string =
   parse program |> expr_of_s_exp |> interp_exp Symtab.empty
   |> string_of_value
+
+let interp_err (program : string) : string =
+  try interp program with BadExpression _ -> "ERROR"

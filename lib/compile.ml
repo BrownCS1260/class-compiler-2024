@@ -42,6 +42,13 @@ let lf_to_bool : directive list =
 let stack_address (stack_index : int) =
   MemOffset (Reg Rsp, Imm stack_index)
 
+(* overwrites r8 *)
+let ensure_num (op : operand) : directive list =
+  [ Mov (Reg R8, op)
+  ; And (Reg R8, Imm num_mask)
+  ; Cmp (Reg R8, Imm num_tag)
+  ; Jnz "error" ]
+
 (* stack_index : represents the next available location on stack,
    i.e. rsp + stack_index is unused *)
 let rec compile_exp (tab : int symtab) (stack_index : int)
@@ -57,9 +64,11 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
       raise (BadExpression program)
   | Prim1 (Add1, arg) ->
       compile_exp tab stack_index arg
+      @ ensure_num (Reg Rax)
       @ [Add (Reg Rax, operand_of_num 1)]
   | Prim1 (Sub1, arg) ->
       compile_exp tab stack_index arg
+      @ ensure_num (Reg Rax)
       @ [Sub (Reg Rax, operand_of_num 1)]
   | Prim1 (Not, arg) ->
       compile_exp tab stack_index arg
@@ -91,13 +100,17 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
         ; Add (Reg Rdi, Imm 16) ]
   | Prim2 (Plus, e1, e2) ->
       compile_exp tab stack_index e1
+      @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
+      @ ensure_num (Reg Rax)
       @ [Add (Reg Rax, stack_address stack_index)]
   | Prim2 (Minus, e1, e2) ->
       compile_exp tab stack_index e1
+      @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
+      @ ensure_num (Reg Rax)
       @ [ Mov (Reg R8, Reg Rax)
         ; Mov (Reg Rax, stack_address stack_index) ]
       @ [Sub (Reg Rax, Reg R8)]
@@ -132,7 +145,7 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
           (stack_index - 8) body
 
 let compile (program : expr) : string =
-  [Global "entry"; Label "entry"]
+  [Global "entry"; Extern "error"; Label "entry"]
   @ compile_exp Symtab.empty (-8) program
   @ [Ret]
   |> List.map string_of_directive
