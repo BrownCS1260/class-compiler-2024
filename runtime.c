@@ -13,7 +13,7 @@
 #define heap_mask 0b111 
 #define pair_tag 0b010
 
-extern int64_t entry(void *heap);
+extern int64_t entry(void *heap); 
 
 void error() {
     printf("ERROR");
