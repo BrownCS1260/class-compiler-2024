@@ -49,6 +49,13 @@ let ensure_num (op : operand) : directive list =
   ; Cmp (Reg R8, Imm num_tag)
   ; Jnz "error" ]
 
+(* overwrites r8 *)
+let ensure_pair (op : operand) : directive list =
+  [ Mov (Reg R8, op)
+  ; And (Reg R8, Imm heap_mask)
+  ; Cmp (Reg R8, Imm pair_tag)
+  ; Jnz "error" ]
+
 (* stack_index : represents the next available location on stack,
    i.e. rsp + stack_index is unused *)
 let rec compile_exp (tab : int symtab) (stack_index : int)
@@ -61,6 +68,8 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
   | Var s when Symtab.mem s tab ->
       [Mov (Reg Rax, stack_address (Symtab.find s tab))]
   | Var _ ->
+      raise (BadExpression program)
+  | Prim0 ReadNum ->
       raise (BadExpression program)
   | Prim1 (Add1, arg) ->
       compile_exp tab stack_index arg
@@ -84,9 +93,11 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
       @ zf_to_bool
   | Prim1 (Left, e) ->
       compile_exp tab stack_index e
+      @ ensure_pair (Reg Rax)
       @ [Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag)))]
   | Prim1 (Right, e) ->
       compile_exp tab stack_index e
+      @ ensure_pair (Reg Rax)
       @ [Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8)))]
   | Prim2 (Pair, e1, e2) ->
       compile_exp tab stack_index e1
@@ -123,8 +134,10 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
       @ zf_to_bool
   | Prim2 (Lt, e1, e2) ->
       compile_exp tab stack_index e1
+      @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
+      @ ensure_num (Reg Rax)
       @ [ Mov (Reg R8, stack_address stack_index)
         ; Cmp (Reg Rax, Reg R8) ]
       @ lf_to_bool

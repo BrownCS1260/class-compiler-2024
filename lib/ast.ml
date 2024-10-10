@@ -2,6 +2,11 @@ open S_exp
 
 exception BadSExpression of s_exp
 
+type prim0 = ReadNum
+
+let prim0_of_string (s : string) : prim0 option =
+  match s with "read-num" -> Some ReadNum | _ -> None
+
 type prim1 = Add1 | Sub1 | ZeroP | NumP | Not | Left | Right
 
 let prim1_of_string (s : string) : prim1 option =
@@ -44,11 +49,12 @@ type expr =
   | Num of int
   | Var of string
   | If of expr * expr * expr
+  | Prim0 of prim0
   | Prim1 of prim1 * expr
   | Prim2 of prim2 * expr * expr
   | Let of string * expr * expr
 
-let rec expr_of_s_exp (e : s_exp) : expr =
+let rec expr_of_s_exp_aux (env : string list) (e : s_exp) : expr =
   match e with
   | Num n ->
       Num n
@@ -56,18 +62,26 @@ let rec expr_of_s_exp (e : s_exp) : expr =
       Bool true
   | Sym "false" ->
       Bool false
-  | Sym s ->
+  | Sym s when List.mem s env ->
       Var s
   | Lst [Sym "if"; e1; e2; e3] ->
-      If (expr_of_s_exp e1, expr_of_s_exp e2, expr_of_s_exp e3)
+      If
+        ( expr_of_s_exp_aux env e1
+        , expr_of_s_exp_aux env e2
+        , expr_of_s_exp_aux env e3 )
+  | Lst [Sym op] when Option.is_some (prim0_of_string op) ->
+      Prim0 (Option.get (prim0_of_string op))
   | Lst [Sym op; e1] when Option.is_some (prim1_of_string op) ->
-      Prim1 (Option.get (prim1_of_string op), expr_of_s_exp e1)
+      Prim1 (Option.get (prim1_of_string op), expr_of_s_exp_aux env e1)
   | Lst [Sym op; e1; e2] when Option.is_some (prim2_of_string op) ->
       Prim2
         ( Option.get (prim2_of_string op)
-        , expr_of_s_exp e1
-        , expr_of_s_exp e2 )
+        , expr_of_s_exp_aux env e1
+        , expr_of_s_exp_aux env e2 )
   | Lst [Sym "let"; Lst [Lst [Sym s; e]]; body] ->
-      Let (s, expr_of_s_exp e, expr_of_s_exp body)
+      Let
+        (s, expr_of_s_exp_aux env e, expr_of_s_exp_aux (s :: env) body)
   | _ ->
       raise (BadSExpression e)
+
+let expr_of_s_exp : s_exp -> expr = expr_of_s_exp_aux []
