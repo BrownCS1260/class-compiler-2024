@@ -86,19 +86,23 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
       | _ ->
           raise (BadExpression exp) )
   | Prim2 (Eq, e1, e2) -> (
-    match (interp_exp env e1, interp_exp env e2) with
-    | Number n1, Number n2 ->
-        Boolean (n1 = n2)
-    | Boolean b1, Boolean b2 ->
-        Boolean (b1 = b2)
-    | _ ->
-        raise (BadExpression exp) )
+      let v1 = interp_exp env e1 in
+      let v2 = interp_exp env e2 in
+      match (v1, v2) with
+      | Number n1, Number n2 ->
+          Boolean (n1 = n2)
+      | Boolean b1, Boolean b2 ->
+          Boolean (b1 = b2)
+      | _ ->
+          raise (BadExpression exp) )
   | Prim2 (Lt, e1, e2) -> (
-    match (interp_exp env e1, interp_exp env e2) with
-    | Number n1, Number n2 ->
-        Boolean (n1 < n2)
-    | _ ->
-        raise (BadExpression exp) )
+      let v1 = interp_exp env e1 in
+      let v2 = interp_exp env e2 in
+      match (v1, v2) with
+      | Number n1, Number n2 ->
+          Boolean (n1 < n2)
+      | _ ->
+          raise (BadExpression exp) )
   | If (test_exp, then_exp, else_exp) ->
       if interp_exp env test_exp = Boolean false then
         interp_exp env else_exp
