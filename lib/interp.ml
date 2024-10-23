@@ -2,6 +2,8 @@ open S_exp
 open Ast
 open Util
 
+let output_channel = stdout
+
 exception BadExpression of expr
 
 type value = Number of int | Boolean of bool | Pair of value * value
@@ -26,8 +28,15 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
       Symtab.find s env
   | Var _ ->
       raise (BadExpression exp)
+  | Prim0 Newline ->
+      output_string output_channel "\n" ;
+      Boolean true
   | Prim0 ReadNum ->
       Number (input_line stdin |> int_of_string)
+  | Prim1 (Print, e) ->
+      interp_exp env e |> string_of_value
+      |> output_string output_channel ;
+      Boolean true
   | Prim1 (Not, arg) ->
       if interp_exp env arg = Boolean false then Boolean true
       else Boolean false
@@ -110,10 +119,11 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
   | Let (s, e, body) ->
       let e_val = interp_exp env e in
       interp_exp (Symtab.add s e_val env) body
+  | Do exps ->
+      exps |> List.rev_map (interp_exp env) |> List.hd
 
-let interp (program : string) : string =
-  parse program |> expr_of_s_exp |> interp_exp Symtab.empty
-  |> string_of_value
+let interp (program : string) : unit =
+  parse program |> expr_of_s_exp |> interp_exp Symtab.empty |> ignore
 
-let interp_err (program : string) : string =
-  try interp program with BadExpression _ -> "ERROR"
+(* let interp_err (program : string) : string =
+   try interp program with BadExpression _ -> "ERROR" *)

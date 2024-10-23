@@ -2,12 +2,18 @@ open S_exp
 
 exception BadSExpression of s_exp
 
-type prim0 = ReadNum
+type prim0 = ReadNum | Newline
 
 let prim0_of_string (s : string) : prim0 option =
-  match s with "read-num" -> Some ReadNum | _ -> None
+  match s with
+  | "read-num" ->
+      Some ReadNum
+  | "newline" ->
+      Some Newline
+  | _ ->
+      None
 
-type prim1 = Add1 | Sub1 | ZeroP | NumP | Not | Left | Right
+type prim1 = Add1 | Sub1 | ZeroP | NumP | Not | Left | Right | Print
 
 let prim1_of_string (s : string) : prim1 option =
   match s with
@@ -25,6 +31,8 @@ let prim1_of_string (s : string) : prim1 option =
       Some Left
   | "right" ->
       Some Right
+  | "print" ->
+      Some Print
   | _ ->
       None
 
@@ -53,6 +61,7 @@ type expr =
   | Prim1 of prim1 * expr
   | Prim2 of prim2 * expr * expr
   | Let of string * expr * expr
+  | Do of expr list
 
 let rec expr_of_s_exp_aux (env : string list) (e : s_exp) : expr =
   match e with
@@ -81,6 +90,8 @@ let rec expr_of_s_exp_aux (env : string list) (e : s_exp) : expr =
   | Lst [Sym "let"; Lst [Lst [Sym s; e]]; body] ->
       Let
         (s, expr_of_s_exp_aux env e, expr_of_s_exp_aux (s :: env) body)
+  | Lst (Sym "do" :: progs) ->
+      Do (List.map (expr_of_s_exp_aux env) progs)
   | _ ->
       raise (BadSExpression e)
 

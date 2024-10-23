@@ -20,6 +20,12 @@ void error() {
     exit(1);
 }
 
+uint64_t read_num() {
+    int r = 0;
+    scanf("%d", &r);
+    return r << num_shift;
+}
+
 void print_value(uint64_t value) {
 
     if ((value & num_mask) == num_tag) {

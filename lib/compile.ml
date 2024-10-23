@@ -56,6 +56,9 @@ let ensure_pair (op : operand) : directive list =
   ; Cmp (Reg R8, Imm pair_tag)
   ; Jnz "error" ]
 
+let align_stack_index (stack_index : int) : int =
+  if stack_index mod 16 = 0 then stack_index - 8 else stack_index
+
 (* stack_index : represents the next available location on stack,
    i.e. rsp + stack_index is unused *)
 let rec compile_exp (tab : int symtab) (stack_index : int)
@@ -70,6 +73,14 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
   | Var _ ->
       raise (BadExpression program)
   | Prim0 ReadNum ->
+      [ Mov (stack_address stack_index, Reg Rdi)
+      ; Add (Reg Rsp, Imm (align_stack_index stack_index))
+      ; Call "read_num"
+      ; Sub (Reg Rsp, Imm (align_stack_index stack_index))
+      ; Mov (Reg Rdi, stack_address stack_index) ]
+  | Prim0 Newline ->
+      raise (BadExpression program)
+  | Prim1 (Print, _) ->
       raise (BadExpression program)
   | Prim1 (Add1, arg) ->
       compile_exp tab stack_index arg
@@ -156,9 +167,11 @@ let rec compile_exp (tab : int symtab) (stack_index : int)
       @ compile_exp
           (Symtab.add s stack_index tab)
           (stack_index - 8) body
+  | Do _ ->
+      raise (BadExpression program)
 
 let compile (program : expr) : string =
-  [Global "entry"; Extern "error"; Label "entry"]
+  [Global "entry"; Extern "error"; Extern "read_num"; Label "entry"]
   @ compile_exp Symtab.empty (-8) program
   @ [Ret]
   |> List.map string_of_directive
