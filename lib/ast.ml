@@ -62,6 +62,7 @@ type expr =
   | Prim2 of prim2 * expr * expr
   | Let of string * expr * expr
   | Do of expr list
+  | Call of string * expr list
 
 let rec expr_of_s_exp_aux (env : string list) (e : s_exp) : expr =
   match e with
@@ -71,7 +72,8 @@ let rec expr_of_s_exp_aux (env : string list) (e : s_exp) : expr =
       Bool true
   | Sym "false" ->
       Bool false
-  | Sym s when List.mem s env ->
+  | Sym s ->
+      (*when List.mem s env*)
       Var s
   | Lst [Sym "if"; e1; e2; e3] ->
       If
@@ -92,7 +94,45 @@ let rec expr_of_s_exp_aux (env : string list) (e : s_exp) : expr =
         (s, expr_of_s_exp_aux env e, expr_of_s_exp_aux (s :: env) body)
   | Lst (Sym "do" :: progs) ->
       Do (List.map (expr_of_s_exp_aux env) progs)
+  | Lst (Sym f :: args) ->
+      Call (f, List.map (expr_of_s_exp_aux env) args)
   | _ ->
       raise (BadSExpression e)
 
+type defn = {name: string; args: string list; body: expr}
+
+type program = {defns: defn list; body: expr}
+
+let is_defn defns name = List.exists (fun d -> d.name = name) defns
+
+let get_defn defns name = List.find (fun d -> d.name = name) defns
+
 let expr_of_s_exp : s_exp -> expr = expr_of_s_exp_aux []
+
+let program_of_s_exps (exps : s_exp list) : program =
+  let rec get_args args =
+    match args with
+    | Sym v :: args ->
+        v :: get_args args
+    | e :: _ ->
+        raise (BadSExpression e)
+    | [] ->
+        []
+  in
+  let get_defn = function
+    | Lst [Sym "define"; Lst (Sym name :: args); body] ->
+        let args = get_args args in
+        {name; args; body= expr_of_s_exp body}
+    | e ->
+        raise (BadSExpression e)
+  in
+  let rec go exps defns =
+    match exps with
+    | [e] ->
+        {defns= List.rev defns; body= expr_of_s_exp e}
+    | d :: exps ->
+        go exps (get_defn d :: defns)
+    | _ ->
+        raise (BadSExpression (Sym "empty"))
+  in
+  go exps []

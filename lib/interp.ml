@@ -18,7 +18,8 @@ let rec string_of_value (v : value) : string =
       Printf.sprintf "(pair %s %s)" (string_of_value e1)
         (string_of_value e2)
 
-let rec interp_exp (env : value symtab) (exp : expr) : value =
+let rec interp_exp (defns : defn list) (env : value symtab)
+    (exp : expr) : value =
   match exp with
   | Num n ->
       Number n
@@ -34,69 +35,69 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
   | Prim0 ReadNum ->
       Number (input_line stdin |> int_of_string)
   | Prim1 (Print, e) ->
-      interp_exp env e |> string_of_value
+      interp_exp defns env e |> string_of_value
       |> output_string output_channel ;
       Boolean true
   | Prim1 (Not, arg) ->
-      if interp_exp env arg = Boolean false then Boolean true
+      if interp_exp defns env arg = Boolean false then Boolean true
       else Boolean false
   | Prim1 (ZeroP, arg) -> (
-    match interp_exp env arg with
+    match interp_exp defns env arg with
     | Number 0 ->
         Boolean true
     | _ ->
         Boolean false )
   | Prim1 (NumP, arg) -> (
-    match interp_exp env arg with
+    match interp_exp defns env arg with
     | Number _ ->
         Boolean true
     | _ ->
         Boolean false )
   | Prim1 (Add1, arg) -> (
-    match interp_exp env arg with
+    match interp_exp defns env arg with
     | Number n ->
         Number (n + 1)
     | _ ->
         raise (BadExpression exp) )
   | Prim1 (Sub1, arg) -> (
-    match interp_exp env arg with
+    match interp_exp defns env arg with
     | Number n ->
         Number (n - 1)
     | _ ->
         raise (BadExpression exp) )
   | Prim1 (Left, e) -> (
-    match interp_exp env e with
+    match interp_exp defns env e with
     | Pair (e1, _) ->
         e1
     | _ ->
         raise (BadExpression exp) )
   | Prim1 (Right, e) -> (
-    match interp_exp env e with
+    match interp_exp defns env e with
     | Pair (_, e2) ->
         e2
     | _ ->
         raise (BadExpression exp) )
   | Prim2 (Pair, e1, e2) ->
-      let lhs = interp_exp env e1 in
-      let rhs = interp_exp env e2 in
+      let lhs = interp_exp defns env e1 in
+      let rhs = interp_exp defns env e2 in
       Pair (lhs, rhs)
   | Prim2 (Plus, e1, e2) -> (
-    match (interp_exp env e1, interp_exp env e2) with
+    match (interp_exp defns env e1, interp_exp defns env e2) with
     | Number n1, Number n2 ->
         Number (n1 + n2)
     | _ ->
         raise (BadExpression exp) )
   | Prim2 (Minus, e1, e2) -> (
-      let v1 = interp_exp env e1 in
-      let v2 = interp_exp env e2 in
+      let v1 = interp_exp defns env e1 in
+      let v2 = interp_exp defns env e2 in
       match (v1, v2) with
       | Number n1, Number n2 ->
           Number (n1 - n2)
       | _ ->
           raise (BadExpression exp) )
   | Prim2 (Eq, e1, e2) -> (
-      let v1 = interp_exp env e1 in
-      let v2 = interp_exp env e2 in
+      let v1 = interp_exp defns env e1 in
+      let v2 = interp_exp defns env e2 in
       match (v1, v2) with
       | Number n1, Number n2 ->
           Boolean (n1 = n2)
@@ -105,25 +106,36 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
       | _ ->
           raise (BadExpression exp) )
   | Prim2 (Lt, e1, e2) -> (
-      let v1 = interp_exp env e1 in
-      let v2 = interp_exp env e2 in
+      let v1 = interp_exp defns env e1 in
+      let v2 = interp_exp defns env e2 in
       match (v1, v2) with
       | Number n1, Number n2 ->
           Boolean (n1 < n2)
       | _ ->
           raise (BadExpression exp) )
   | If (test_exp, then_exp, else_exp) ->
-      if interp_exp env test_exp = Boolean false then
-        interp_exp env else_exp
-      else interp_exp env then_exp
+      if interp_exp defns env test_exp = Boolean false then
+        interp_exp defns env else_exp
+      else interp_exp defns env then_exp
   | Let (s, e, body) ->
-      let e_val = interp_exp env e in
-      interp_exp (Symtab.add s e_val env) body
+      let e_val = interp_exp defns env e in
+      interp_exp defns (Symtab.add s e_val env) body
   | Do exps ->
-      exps |> List.rev_map (interp_exp env) |> List.hd
+      exps |> List.rev_map (interp_exp defns env) |> List.hd
+  | Call (f, args) when is_defn defns f ->
+      let defn = get_defn defns f in
+      if List.length args <> List.length defn.args then
+        raise (BadExpression exp)
+      else
+        let vals = List.map (interp_exp defns env) args in
+        let fenv = List.combine defn.args vals |> Symtab.of_list in
+        interp_exp defns fenv defn.body
+  | Call (_, _) ->
+      raise (BadExpression exp)
 
 let interp (program : string) : unit =
-  parse program |> expr_of_s_exp |> interp_exp Symtab.empty |> ignore
+  let program2 = parse_many program |> program_of_s_exps in
+  interp_exp program2.defns Symtab.empty program2.body |> ignore
 
 (* let interp_err (program : string) : string =
    try interp program with BadExpression _ -> "ERROR" *)
