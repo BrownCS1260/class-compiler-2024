@@ -181,6 +181,27 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
   | Do exps ->
       List.map (fun exp -> compile_exp defns tab stack_index exp) exps
       |> List.concat
+  | Call (f, args) when is_defn defns f ->
+      let defn = get_defn defns f in
+      if List.length args <> List.length defn.args then
+        raise (BadExpression program)
+      else
+        let stack_base = align_stack_index (stack_index + 8) in
+        let compiled_args =
+          args
+          |> List.mapi (fun i arg ->
+                 compile_exp defns tab
+                   (stack_base - (8 * (i + 2)))
+                   arg
+                 @ [ Mov
+                       ( stack_address (stack_base - (8 * (i + 2)))
+                       , Reg Rax ) ] )
+          |> List.concat
+        in
+        compiled_args
+        @ [ Add (Reg Rsp, Imm stack_base)
+          ; Call (defn_label f)
+          ; Sub (Reg Rsp, Imm stack_base) ]
   | Call _ ->
       raise (BadExpression program)
 
