@@ -62,7 +62,8 @@ let align_stack_index (stack_index : int) : int =
 (* stack_index : represents the next available location on stack,
    i.e. rsp + stack_index is unused *)
 let rec compile_exp (defns : defn list) (tab : int symtab)
-    (stack_index : int) (program : expr) : directive list =
+    (stack_index : int) (program : expr) (is_tail : bool) :
+    directive list =
   match program with
   | Num n ->
       [Mov (Reg Rax, operand_of_num n)]
@@ -86,7 +87,7 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
       ; Mov (Reg Rdi, stack_address stack_index)
       ; Mov (Reg Rax, operand_of_bool true) ]
   | Prim1 (Print, e) ->
-      compile_exp defns tab stack_index e
+      compile_exp defns tab stack_index e false
       @ [ Mov (stack_address stack_index, Reg Rdi)
         ; Mov (Reg Rdi, Reg Rax)
         ; Add (Reg Rsp, Imm (align_stack_index stack_index))
@@ -95,37 +96,37 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
         ; Mov (Reg Rdi, stack_address stack_index)
         ; Mov (Reg Rax, operand_of_bool true) ]
   | Prim1 (Add1, arg) ->
-      compile_exp defns tab stack_index arg
+      compile_exp defns tab stack_index arg false
       @ ensure_num (Reg Rax)
       @ [Add (Reg Rax, operand_of_num 1)]
   | Prim1 (Sub1, arg) ->
-      compile_exp defns tab stack_index arg
+      compile_exp defns tab stack_index arg false
       @ ensure_num (Reg Rax)
       @ [Sub (Reg Rax, operand_of_num 1)]
   | Prim1 (Not, arg) ->
-      compile_exp defns tab stack_index arg
+      compile_exp defns tab stack_index arg false
       @ [Cmp (Reg Rax, operand_of_bool false)]
       @ zf_to_bool
   | Prim1 (ZeroP, arg) ->
-      compile_exp defns tab stack_index arg
+      compile_exp defns tab stack_index arg false
       @ [Cmp (Reg Rax, operand_of_num 0)]
       @ zf_to_bool
   | Prim1 (NumP, arg) ->
-      compile_exp defns tab stack_index arg
+      compile_exp defns tab stack_index arg false
       @ [And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag)]
       @ zf_to_bool
   | Prim1 (Left, e) ->
-      compile_exp defns tab stack_index e
+      compile_exp defns tab stack_index e false
       @ ensure_pair (Reg Rax)
       @ [Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag)))]
   | Prim1 (Right, e) ->
-      compile_exp defns tab stack_index e
+      compile_exp defns tab stack_index e false
       @ ensure_pair (Reg Rax)
       @ [Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8)))]
   | Prim2 (Pair, e1, e2) ->
-      compile_exp defns tab stack_index e1
+      compile_exp defns tab stack_index e1 false
       @ [Mov (stack_address stack_index, Reg Rax)]
-      @ compile_exp defns tab (stack_index - 8) e2
+      @ compile_exp defns tab (stack_index - 8) e2 false
       @ [ Mov (Reg R8, stack_address stack_index)
         ; Mov (MemOffset (Reg Rdi, Imm 0), Reg R8)
         ; Mov (MemOffset (Reg Rdi, Imm 8), Reg Rax)
@@ -133,33 +134,33 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
         ; Or (Reg Rax, Imm pair_tag)
         ; Add (Reg Rdi, Imm 16) ]
   | Prim2 (Plus, e1, e2) ->
-      compile_exp defns tab stack_index e1
+      compile_exp defns tab stack_index e1 false
       @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
-      @ compile_exp defns tab (stack_index - 8) e2
+      @ compile_exp defns tab (stack_index - 8) e2 false
       @ ensure_num (Reg Rax)
       @ [Add (Reg Rax, stack_address stack_index)]
   | Prim2 (Minus, e1, e2) ->
-      compile_exp defns tab stack_index e1
+      compile_exp defns tab stack_index e1 false
       @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
-      @ compile_exp defns tab (stack_index - 8) e2
+      @ compile_exp defns tab (stack_index - 8) e2 false
       @ ensure_num (Reg Rax)
       @ [ Mov (Reg R8, Reg Rax)
         ; Mov (Reg Rax, stack_address stack_index) ]
       @ [Sub (Reg Rax, Reg R8)]
   | Prim2 (Eq, e1, e2) ->
-      compile_exp defns tab stack_index e1
+      compile_exp defns tab stack_index e1 false
       @ [Mov (stack_address stack_index, Reg Rax)]
-      @ compile_exp defns tab (stack_index - 8) e2
+      @ compile_exp defns tab (stack_index - 8) e2 false
       @ [ Mov (Reg R8, stack_address stack_index)
         ; Cmp (Reg Rax, Reg R8) ]
       @ zf_to_bool
   | Prim2 (Lt, e1, e2) ->
-      compile_exp defns tab stack_index e1
+      compile_exp defns tab stack_index e1 false
       @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
-      @ compile_exp defns tab (stack_index - 8) e2
+      @ compile_exp defns tab (stack_index - 8) e2 false
       @ ensure_num (Reg Rax)
       @ [ Mov (Reg R8, stack_address stack_index)
         ; Cmp (Reg R8, Reg Rax) ]
@@ -167,21 +168,48 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
   | If (test_exp, then_exp, else_exp) ->
       let else_label = Util.gensym "else" in
       let continue_label = Util.gensym "continue" in
-      compile_exp defns tab stack_index test_exp
+      compile_exp defns tab stack_index test_exp false
       @ [Cmp (Reg Rax, operand_of_bool false); Jz else_label]
-      @ compile_exp defns tab stack_index then_exp
+      @ compile_exp defns tab stack_index then_exp is_tail
       @ [Jmp continue_label] @ [Label else_label]
-      @ compile_exp defns tab stack_index else_exp
+      @ compile_exp defns tab stack_index else_exp is_tail
       @ [Label continue_label]
   | Let (s, e, body) ->
-      compile_exp defns tab stack_index e
+      compile_exp defns tab stack_index e false
       @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp defns
           (Symtab.add s stack_index tab)
-          (stack_index - 8) body
+          (stack_index - 8) body is_tail
   | Do exps ->
-      List.map (fun exp -> compile_exp defns tab stack_index exp) exps
+      List.mapi
+        (fun i exp ->
+          compile_exp defns tab stack_index exp
+            (if i = List.length exps - 1 then is_tail else false) )
+        exps
       |> List.concat
+  | Call (f, args) when is_defn defns f && is_tail ->
+      let defn = get_defn defns f in
+      if List.length args = List.length defn.args then
+        let compiled_args =
+          args
+          |> List.mapi (fun i arg ->
+                 compile_exp defns tab
+                   (stack_index - (8 * i))
+                   arg false
+                 @ [ Mov
+                       (stack_address (stack_index - (8 * i)), Reg Rax)
+                   ] )
+          |> List.concat
+        in
+        let moved_args =
+          args
+          |> List.mapi (fun i _ ->
+                 [ Mov (Reg R8, stack_address (stack_index - (8 * i)))
+                 ; Mov (stack_address ((i + 1) * -8), Reg R8) ] )
+          |> List.concat
+        in
+        compiled_args @ moved_args @ [Jmp (defn_label f)]
+      else raise (BadExpression program)
   | Call (f, args) when is_defn defns f ->
       let defn = get_defn defns f in
       if List.length args <> List.length defn.args then
@@ -193,7 +221,7 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
           |> List.mapi (fun i arg ->
                  compile_exp defns tab
                    (stack_base - (8 * (i + 2)))
-                   arg
+                   arg false
                  @ [ Mov
                        ( stack_address (stack_base - (8 * (i + 2)))
                        , Reg Rax ) ] )
@@ -213,7 +241,7 @@ let compile_defn (defns : defn list) {name; args; body} =
     |> Symtab.of_list
   in
   [Label (defn_label name)]
-  @ compile_exp defns ftab (-8 * (List.length args + 1)) body
+  @ compile_exp defns ftab (-8 * (List.length args + 1)) body true
   @ [Ret]
 
 let compile (prog : program) : string =
@@ -223,7 +251,7 @@ let compile (prog : program) : string =
   ; Extern "print_newline"
   ; Extern "print_value"
   ; Label "entry" ]
-  @ compile_exp prog.defns Symtab.empty (-8) prog.body
+  @ compile_exp prog.defns Symtab.empty (-8) prog.body true
   @ [Ret]
   @ List.concat_map (compile_defn prog.defns) prog.defns
   |> List.map string_of_directive
