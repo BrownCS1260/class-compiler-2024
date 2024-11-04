@@ -57,7 +57,7 @@ let ensure_pair (op : operand) : directive list =
   ; Jnz "error" ]
 
 let align_stack_index (stack_index : int) : int =
-  if stack_index mod 16 = -8 then stack_index else stack_index - 8
+  if stack_index mod 16 = 0 then stack_index - 8 else stack_index
 
 (* stack_index : represents the next available location on stack,
    i.e. rsp + stack_index is unused *)
@@ -162,7 +162,7 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
       @ compile_exp defns tab (stack_index - 8) e2
       @ ensure_num (Reg Rax)
       @ [ Mov (Reg R8, stack_address stack_index)
-        ; Cmp (Reg Rax, Reg R8) ]
+        ; Cmp (Reg R8, Reg Rax) ]
       @ lf_to_bool
   | If (test_exp, then_exp, else_exp) ->
       let else_label = Util.gensym "else" in
