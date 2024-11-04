@@ -57,7 +57,7 @@ let ensure_pair (op : operand) : directive list =
   ; Jnz "error" ]
 
 let align_stack_index (stack_index : int) : int =
-  if stack_index mod 16 = 0 then stack_index - 8 else stack_index
+  if stack_index mod 16 = -8 then stack_index else stack_index - 8
 
 (* stack_index : represents the next available location on stack,
    i.e. rsp + stack_index is unused *)
@@ -92,7 +92,8 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
         ; Add (Reg Rsp, Imm (align_stack_index stack_index))
         ; Call "print_value"
         ; Sub (Reg Rsp, Imm (align_stack_index stack_index))
-        ; Mov (Reg Rdi, stack_address stack_index) ]
+        ; Mov (Reg Rdi, stack_address stack_index)
+        ; Mov (Reg Rax, operand_of_bool true) ]
   | Prim1 (Add1, arg) ->
       compile_exp defns tab stack_index arg
       @ ensure_num (Reg Rax)
