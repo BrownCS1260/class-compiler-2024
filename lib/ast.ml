@@ -62,7 +62,7 @@ type expr =
   | Prim2 of prim2 * expr * expr
   | Let of string * expr * expr
   | Do of expr list
-  | Call of string * expr list
+  | Call of expr * expr list
 
 let rec expr_of_s_exp_aux (env : string list) (e : s_exp) : expr =
   match e with
@@ -94,8 +94,10 @@ let rec expr_of_s_exp_aux (env : string list) (e : s_exp) : expr =
         (s, expr_of_s_exp_aux env e, expr_of_s_exp_aux (s :: env) body)
   | Lst (Sym "do" :: progs) ->
       Do (List.map (expr_of_s_exp_aux env) progs)
-  | Lst (Sym f :: args) ->
-      Call (f, List.map (expr_of_s_exp_aux env) args)
+  | Lst (f :: args) ->
+      Call
+        ( expr_of_s_exp_aux env f
+        , List.map (expr_of_s_exp_aux env) args )
   | _ ->
       raise (BadSExpression e)
 
