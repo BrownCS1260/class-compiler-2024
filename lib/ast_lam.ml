@@ -12,8 +12,7 @@ type expr_lam =
   | Num of int
   | Var of string
   | Call of expr_lam * expr_lam list
-  | True
-  | False
+  | Bool of bool
   | Lambda of string list * expr_lam
 
 let is_sym e = match e with Sym _ -> true | _ -> false
@@ -24,9 +23,9 @@ let rec expr_lam_of_s_exp : s_exp -> expr_lam = function
   | Num x ->
       Num x
   | Sym "true" ->
-      True
+      Bool true
   | Sym "false" ->
-      False
+      Bool false
   | Sym var ->
       Var var
   | Lst [Sym "let"; Lst [Lst [Sym var; exp]]; body] ->
@@ -62,10 +61,8 @@ let rec expr_of_expr_lam (defns : defn list ref) : expr_lam -> expr =
       Num x
   | Var s ->
       Var s
-  | True ->
-      True
-  | False ->
-      False
+  | Bool b ->
+      Bool b
   | If (test_exp, then_exp, else_exp) ->
       If
         ( expr_of_expr_lam defns test_exp
