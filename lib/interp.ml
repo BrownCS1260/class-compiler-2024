@@ -1,5 +1,5 @@
 open S_exp
-open Ast
+open Ast_lam
 open Util
 
 let output_channel = stdout
@@ -10,7 +10,7 @@ type value =
   | Number of int
   | Boolean of bool
   | Pair of value * value
-  | Function of string
+  | Function of string * value symtab
 
 let rec string_of_value (v : value) : string =
   match v with
@@ -31,17 +31,19 @@ let rec interp_exp (defns : defn list) (env : value symtab)
       Number n
   | Bool b ->
       Boolean b
-  | Var s when Symtab.mem s env ->
-      Symtab.find s env
-  | Var s when is_defn defns s ->
-      Function s
+  | Var var when Symtab.mem var env ->
+      Symtab.find var env
+  | Var var when is_defn defns var ->
+      Function (var, Symtab.empty)
   | Var _ ->
       raise (BadExpression exp)
-  | Prim0 Newline ->
-      output_string output_channel "\n" ;
-      Boolean true
+  | Closure f ->
+      Function (f, env)
   | Prim0 ReadNum ->
       Number (input_line stdin |> int_of_string)
+  | Prim0 Newline ->
+      output_string stdout "\n" ;
+      Boolean true
   | Prim1 (Print, e) ->
       interp_exp defns env e |> string_of_value
       |> output_string output_channel ;
@@ -131,17 +133,20 @@ let rec interp_exp (defns : defn list) (env : value symtab)
   | Do exps ->
       exps |> List.rev_map (interp_exp defns env) |> List.hd
   | Call (f, args) -> (
-    match interp_exp defns env f with
-    | Function fn ->
-        let defn = get_defn defns fn in
-        if List.length args <> List.length defn.args then
-          raise (BadExpression exp)
-        else
-          let vals = List.map (interp_exp defns env) args in
-          let fenv = List.combine defn.args vals |> Symtab.of_list in
-          interp_exp defns fenv defn.body
-    | _ ->
-        raise (BadExpression exp) )
+      let vals = List.map (interp_exp defns env) args in
+      let fv = interp_exp defns env f in
+      match fv with
+      | Function (f, saved_env) when is_defn defns f ->
+          let defn = get_defn defns f in
+          if List.length args <> List.length defn.args then
+            raise (BadExpression exp)
+          else
+            let fenv =
+              List.combine defn.args vals |> Symtab.add_list saved_env
+            in
+            interp_exp defns fenv defn.body
+      | _ ->
+          raise (BadExpression exp) )
 
 let interp (program : string) : unit =
   let program2 = parse_many program |> program_of_s_exps in

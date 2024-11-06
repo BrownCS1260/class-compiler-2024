@@ -56,6 +56,7 @@ type expr =
   | Bool of bool
   | Num of int
   | Var of string
+  | Closure of string
   | If of expr * expr * expr
   | Prim0 of prim0
   | Prim1 of prim1 * expr
