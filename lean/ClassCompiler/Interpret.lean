@@ -7,6 +7,12 @@ inductive Value
 | Integer (i : Int)
 | Boolean (b : Bool)
 
+theorem sillyTheorem : ∀ v : Value, v = v := by
+  intro v
+  cases v with
+  | Integer i => sorry
+  | Boolean b => sorry
+
 def Value.to_String : Value → String
 | Integer i => toString i
 | Boolean b => toString b
@@ -35,4 +41,4 @@ match Ast_of_S_exp sexp with
 | some ast => interpret_exp ast
 | none => panic! "parser error"
 
-#eval interpret_string "(add1 4)"
+#eval interpret_string "(add1 100)"

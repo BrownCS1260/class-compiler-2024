@@ -1,5 +1,6 @@
 import ClassCompiler.Asm
 import ClassCompiler.Compile
+import ClassCompiler.Interpret
 
 open Directive Register Operand
 
@@ -34,12 +35,12 @@ def processDirective (st : ProcessorState) : Directive → ProcessorState
 def Processor.evalToState : List Directive → ProcessorState :=
 List.foldl processDirective {rax := 0, rcx := 0}
 
-def Processor.eval (ds : List Directive) : Option (Nat ⊕ Bool) :=
+def Processor.eval (ds : List Directive) : Option Value :=
 let retval := (evalToState ds).rax;
 if retval &&& num_mask = num_tag then
-  some (Sum.inl (retval >>> num_shift))
+  some (Value.Integer (retval >>> num_shift))
 else if retval &&& bool_mask = bool_tag then
   if retval >>> bool_shift = 0 then
-    some (Sum.inr false)
-  else some (Sum.inr true)
+    some (Value.Boolean false)
+  else some (Value.Boolean true)
 else none

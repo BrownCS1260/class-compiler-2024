@@ -49,4 +49,4 @@ unsafe def compile_and_run (s : String) : IO Unit := do
   let out ← IO.Process.run { cmd := "./program" }
   IO.print out
 
-#eval compile_and_run "(add1 3)"
+#eval compile_and_run "(add1 500)"
